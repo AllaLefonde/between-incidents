@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Between — a photo project</title>
+<style>
+  :root {
+    --bg: #20292F;
+    --bg-soft: #1a2227;
+    --line: #3a4751;
+    --text: #ececec;
+    --text-soft: #aab2b8;
+    --accent: #e6c47a;
+    --gap: 24px;
+    --header-h: 72px;
+    --footer-h: 72px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); height: 100%; }
+  body {
+    font-family: "Inter", "Helvetica Neue", -apple-system, system-ui, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  ::selection { background: var(--accent); color: #0e0e10; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ====== Routed views ====== */
+  .view { display: none; }
+  .view.active { display: block; animation: viewFadeIn 0.45s ease both; }
+  @keyframes viewFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* ====== Home view ====== */
+  #view-home.active {
+    min-height: 100vh;
+    display: block;
+    position: relative;
+    background: #aea6a0;
+  }
+  /* Home uses a light backdrop, so use dark text on it. */
+  #view-home h1 { color: #20292F; }
+  #view-home .enter { color: #4a5660; }
+  #view-home .enter:hover { color: #20292F; }
+  #view-home .home-photo { background: transparent; }
+  #view-home header.hero {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 18px;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .home-credit {
+    position: absolute;
+    left: 50%;
+    right: 0;
+    bottom: 32px;
+    padding-right: 44px;
+    text-align: right;
+    font-family: "Caveat", "Segoe Script", "Bradley Hand", "Lucida Handwriting", cursive;
+    font-weight: 500;
+    font-size: clamp(16px, 1.6vw, 22px);
+    letter-spacing: 0.01em;
+    color: #4a5660;
+    z-index: 1;
+    pointer-events: none;
+    transition: bottom 0.25s ease;
+  }
+  h1 {
+    margin: 0;
+    text-align: center;
+    font-family: "Caveat", "Segoe Script", "Bradley Hand", "Lucida Handwriting", cursive;
+    font-weight: 500;
+    font-size: clamp(22px, 2.6vw, 36px);
+    line-height: 1.2;
+    letter-spacing: 0.005em;
+    color: var(--text);
+  }
+  .enter { pointer-events: auto; }
+  .home-photo {
+    position: absolute;
+    left: 25vw;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 46vw;
+    max-height: 86vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .home-photo.loaded { opacity: 1; }
+  .enter {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 10px 14px;
+    color: var(--text-soft);
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    transition: color 0.2s ease, transform 0.25s ease;
+  }
+  .enter svg { display: block; }
+  .enter:hover {
+    color: var(--text);
+    transform: translateX(6px);
+  }
+  .enter:active { transform: translateX(8px); }
+
+  /* ====== Pair view ====== */
+  #view-pair { height: 100%; display: none; flex-direction: column; }
+  #view-pair.active { display: flex; }
+
+  /* (Pair header removed — Esc returns to home, prev/next or ← → step pairs.) */
+
+  /* Each photo lives in its own half of the stage, centred. The frame is
+     a fixed 3:2 box, identical for every pair and every photo — that way
+     portraits don't tower over landscapes; both orientations fit inside
+     the same outer footprint via object-fit: contain. JS sets the box
+     pixels based on viewport (largest 3:2 that fits half-width × stage-h). */
+  /* Default: everything centred. */
+  .pair-stage {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 32px 48px 2px;
+    align-items: center;
+    justify-items: center;
+  }
+  .frame-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+    background: transparent;
+    transform: translateY(0);
+    transition: transform 0.35s ease;
+    /* width + height are written inline by fitPair() */
+  }
+  /* Mixed-orientation pair (one portrait + one landscape):
+       portrait → shifted horizontally toward the landscape (translateX
+                  via --mixed-portrait-shift) so the visible gap between
+                  the two images is MIXED_GAP px, not the wide empty
+                  space a centred-in-cell portrait would otherwise create.
+       landscape → stays centred horizontally; image bottom-aligned in
+                   frame, frame shifted DOWN by --landscape-shift so its
+                   image bottom matches the portrait's image bottom. */
+  #view-pair.mixed .frame-box.portrait {
+    transform: translateX(var(--mixed-portrait-shift, 0px));
+  }
+  #view-pair.mixed .frame-box.landscape {
+    align-items: flex-end;
+    transform: translateY(var(--landscape-shift, 0px));
+  }
+  /* Two-portrait pair: each frame slides inward (left one to the right,
+     right one to the left) so the visible spacing between the two narrow
+     images matches what a landscape pair has — they don't sit isolated
+     at the extreme edges of their halves. JS sets --portrait-shift-a/b. */
+  #view-pair.both-portrait #frame-a {
+    transform: translateX(var(--portrait-shift-a, 0));
+  }
+  #view-pair.both-portrait #frame-b {
+    transform: translateX(var(--portrait-shift-b, 0));
+  }
+  .frame-box img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    /* per-image max-width / max-height may be overridden inline by fitPair
+       for portraits, which are allowed to grow ~13% past the frame edges. */
+  }
+  .frame-box img.loaded { opacity: 1; }
+  .frame-box { overflow: visible; }
+
+  .pair-footer {
+    height: 48px;
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 0 32px 8px;
+  }
+  .pair-footer-spacer { /* keeps the grid balanced — nav stays exact-centre */ }
+  .nav-group {
+    display: flex;
+    gap: 14px;
+    justify-self: center;
+  }
+  .pair-progress {
+    justify-self: end;
+    color: var(--text-soft);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+  }
+  .nav-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    color: var(--text-soft);
+    font-size: 16px;
+    line-height: 1;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, transform 0.15s ease;
+    font-family: inherit;
+  }
+  .nav-btn:hover:not([disabled]) { color: var(--text); }
+  .nav-btn[disabled] { opacity: 0.3; cursor: default; }
+
+  /* ====== End view (Last.jpg) ====== */
+  #view-end { height: 100%; display: none; position: relative; }
+  #view-end.active {
+    display: block;
+    background: #aea6a0;
+    color: #20292F;
+    animation: viewFadeIn 0.45s ease both;
+  }
+  /* Footer floats on top so the photo/message can use the full viewport. */
+  #view-end .pair-footer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+  }
+  #view-end .nav-btn { color: #4a5660; }
+  #view-end .nav-btn:hover:not([disabled]) { color: #20292F; }
+  #view-end .pair-progress { color: #4a5660; }
+  /* Last.jpg mirrors First.jpg's placement on the home page — centred in
+     the left half of the viewport, contained, no crop. */
+  .end-photo {
+    position: absolute;
+    left: 25vw;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 46vw;
+    max-height: 86vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+  .end-photo.loaded { opacity: 1; }
+  /* Texts on the right half, mirrored from the home page's hero placement. */
+  .end-message {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 32px;
+    font-family: "Caveat", "Segoe Script", "Bradley Hand", "Lucida Handwriting", cursive;
+    font-weight: 500;
+    font-size: clamp(20px, 2.4vw, 36px);
+    line-height: 1.25;
+    color: #20292F;
+  }
+  .end-message div + div { margin-top: 4px; }
+
+  /* ====== Responsive ====== */
+  @media (max-width: 720px) {
+    :root { --gap: 12px; --header-h: 56px; --footer-h: 56px; }
+    #view-home header.hero { padding: 56px 22px 32px; }
+    .index { padding: 16px 22px 56px; }
+    .pair-footer { padding: 0 18px; }
+    .pair-stage { flex-direction: column; padding: 14px 18px; gap: 12px; }
+    .frame-box { width: 100% !important; height: auto !important; max-height: calc(50vh - 80px); }
+    .frame-box img { max-height: calc(50vh - 80px); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Home / landing ===== -->
+<div class="view active" id="view-home">
+  <img class="home-photo" id="home-photo" src="First.jpg" alt="">
+  <header class="hero">
+    <h1>Клики между инцидентами</h1>
+    <button type="button" class="enter" id="enter-btn" aria-label="Открыть первую пару">
+      <svg viewBox="0 0 80 22" width="48" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <!-- shaft, with a faint hand-drawn curve so it pairs with the Caveat title -->
+        <path d="M3 11 C 22 10.4, 50 11.6, 70 11"/>
+        <!-- arrowhead -->
+        <path d="M58 4 C 62 6.5, 66 8.6, 70 11"/>
+        <path d="M58 18 C 62 15.5, 66 13.4, 70 11"/>
+      </svg>
+    </button>
+  </header>
+  <div class="home-credit">Класс Димы Конрадта · 2025—2026</div>
+</div>
+
+<!-- ===== Single-pair page ===== -->
+<div class="view" id="view-pair">
+  <section class="pair-stage" id="pair-stage">
+    <div class="frame-box" id="frame-a"><img id="pair-a" alt=""></div>
+    <div class="frame-box" id="frame-b"><img id="pair-b" alt=""></div>
+  </section>
+  <footer class="pair-footer">
+    <div class="pair-footer-spacer"></div>
+    <div class="nav-group">
+      <button class="nav-btn" id="prev-btn" aria-label="Предыдущая пара">←</button>
+      <button class="nav-btn" id="home-btn" aria-label="К началу">↑</button>
+      <button class="nav-btn" id="next-btn" aria-label="Следующая пара">→</button>
+    </div>
+    <div class="pair-progress" id="pair-progress">— / —</div>
+  </footer>
+</div>
+
+<!-- ===== End page (Last.jpg) ===== -->
+<div class="view" id="view-end">
+  <img class="end-photo" id="end-photo" src="Last.jpg" alt="">
+  <div class="end-message">
+    <div>
+      <div>Спасибо, Дима,</div>
+      <div>Настя, Кристина(!),</div>
+      <div>&nbsp;Аня, Александр, Дмитрий, Артем</div>
+      <div>&nbsp;</div>
+      <div>До новых встреч</div>
+    </div>
+  </div>
+  <footer class="pair-footer">
+    <div class="pair-footer-spacer"></div>
+    <div class="nav-group">
+      <button class="nav-btn" id="end-prev-btn" aria-label="Назад к последней паре">←</button>
+      <button class="nav-btn" id="end-home-btn" aria-label="К началу">↑</button>
+      <button class="nav-btn" disabled aria-label="Дальше нет">→</button>
+    </div>
+    <div class="pair-progress"></div>
+  </footer>
+</div>
+
+<script>
+  // The full set of files in this folder — grouped by the numeric prefix
+  // before the dot. Pair "14" is built from 14.1-… and 14.2-…
+  // The block between FILES:BEGIN and FILES:END is regenerated by
+  // update-files.cmd / update-files.ps1 — leave the markers in place.
+  const FILES = [
+    // FILES:BEGIN
+    "1.1-DSC01338-2.jpg","1.2-DSC01655.jpg",
+    "2.1-DSC00322.jpg","2.2-DSC00149.jpg",
+    "3.1-DSC05989.jpg","3.2-DSC08990.jpg",
+    "4.1-DSC01816.jpg","4.2-DSC01777.jpg",
+    "5.1-DSC07503.jpg","5.2.jpg",
+    "6.1-DSC00512.jpg","6.2-DSC00515.jpg",
+    "7.1-DSC03679.jpg","7.2-DSC00396.jpg",
+    "8.1-DSC07690.jpg","8.2-DSC09023.jpg",
+    "9.1-DSC00479.jpg","9.2-DSC08907.jpg",
+    "10.1-DSC00266.jpg","10.2-DSC00583.jpg",
+    "11.1-DSC05879.jpg","11.2-DSC05893.jpg",
+    "12.1-DSC04363.jpg","12.2-DSC05938.jpg",
+    "13.1-DSC04374.jpg","13.2-DSC05117.jpg",
+    "14.1-DSC04134.jpg","14.2-DSC00157.jpg",
+    "15.1-DSC09637-2.jpg","15.2-DSC01506.jpg",
+    "16.1-DSC02153.jpg","16.2-DSC08004.jpg",
+    "17.1-DSC04513.jpg","17.2-DSC05934.jpg",
+    "18.1.jpg","18.2.jpg",
+    "19.1-DSC07660.jpg","19.2-DSC08446.jpg",
+    "20.1-DSC03679.jpg","20.2-DSC06525.jpg",
+    "21.1-DSC05489.jpg","21.2-DSC09363.jpg",
+    "22.1-DSC03782.jpg","22.2-DSC02457.jpg",
+    "23.1-DSC00059.jpg","23.2-DSC03609.jpg",
+    "24.1-DSC02604.jpg","24.2-DSC02474.jpg",
+    "25.1-DSC05890.jpg","25.2-DSC07313.jpg",
+    "26.1.jpg","26.2-DSC00421.jpg",
+    "28.1-DSC04248.jpg","28.2-DSC09641.jpg",
+    "29.1-DSC03877.jpg","29.2-DSC07335.jpg",
+    "30.1-DSC03066.jpg","30.2-.jpg",
+    "31.1-DSC02935.jpg","31.2-DSC07703.jpg",
+    "32.1-DSC01062.jpg","32.2-DSC01909-2.jpg",
+    "33.1-DSC03271.jpg","33.2-DSC03685.jpg",
+    "34.1-DSC06388.jpg","34.2-DSC04777.jpg",
+    // FILES:END
+  ];
+
+  // Group by integer prefix before the first dot ("14.1-…" → 14, slot 1).
+  const pairs = new Map();
+  for (const name of FILES) {
+    const m = name.match(/^(\d+)\.([12])[-_.]/);
+    if (!m) continue;
+    const [, n, slot] = m;
+    const num = parseInt(n, 10);
+    if (!pairs.has(num)) pairs.set(num, { a: null, b: null });
+    if (slot === "1") pairs.get(num).a = name;
+    else              pairs.get(num).b = name;
+  }
+  const SORTED = Array.from(pairs.entries())
+    .filter(([, p]) => p.a && p.b)
+    .sort((x, y) => x[0] - y[0]);
+
+  const fmt = (n) => "№ " + String(n).padStart(2, "0");
+  const enc = (name) => encodeURIComponent(name);
+
+  // ===== Drive / local-vs-cloud source resolution =====
+  // Two modes:
+  //   - file:// origin → use relative filenames (local on-disk photos).
+  //   - any http(s):// origin → look the filename up in DRIVE_IDS and
+  //     return a Drive thumbnail URL. Lets the SAME index.html work both
+  //     on a local machine and from a public Drive folder / static host.
+  //
+  // To populate DRIVE_IDS, share the photo folder publicly on Google
+  // Drive, then run the Apps Script in scripts/list-drive-ids.gs against
+  // the folder ID — it prints a DRIVE_IDS = {...} block ready to paste.
+  // First.jpg and Last.jpg should also be in the same Drive folder.
+  const DRIVE_IDS = {
+    // FILES:DRIVE_BEGIN
+    // FILES:DRIVE_END
+  };
+  // Drive returns a thumbnail at a size we ask for; w2400 is large enough
+  // for full-bleed display and still cached / fast.
+  const DRIVE_URL = (id) => `https://drive.google.com/thumbnail?id=${id}&sz=w2400`;
+  const isLocal = location.protocol === "file:";
+  function resolveSrc(name) {
+    if (!name) return "";
+    if (isLocal) return enc(name);
+    const id = DRIVE_IDS[name];
+    if (id) return DRIVE_URL(id);
+    // Cloud mode but no Drive ID known → fall back to a relative URL.
+    // Useful if you also uploaded the .jpg next to index.html on a host
+    // (Netlify, GitHub Pages) instead of going through Drive.
+    return enc(name);
+  }
+  // Pre-resolve First.jpg / Last.jpg too — their <img> elements have
+  // src="First.jpg" / "Last.jpg" baked into the HTML for the local case,
+  // but on cloud mode we have to swap those in before they fetch.
+  if (!isLocal) {
+    const remap = [["home-photo", "First.jpg"], ["end-photo", "Last.jpg"]];
+    for (const [id, name] of remap) {
+      const el = document.getElementById(id);
+      if (el && DRIVE_IDS[name]) el.src = DRIVE_URL(DRIVE_IDS[name]);
+    }
+  }
+
+  // --- Routing ---
+  const home  = document.getElementById("view-home");
+  const pair  = document.getElementById("view-pair");
+  const endV  = document.getElementById("view-end");
+  const lbA   = document.getElementById("pair-a");
+  const lbB   = document.getElementById("pair-b");
+  const prog  = document.getElementById("pair-progress");
+  const prev  = document.getElementById("prev-btn");
+  const next  = document.getElementById("next-btn");
+
+  // Briefly re-run the fade-in animation on the given element. Used by
+  // showPair / showEnd so each navigation feels like an "opening page"
+  // even when the same .view stays active and only its content changed.
+  function flashAnimate(el) {
+    if (!el) return;
+    el.style.animation = "none";
+    void el.offsetHeight; // force reflow so the animation restarts
+    el.style.animation = "viewFadeIn 0.45s ease both";
+  }
+  function showHome() {
+    pair.classList.remove("active");
+    endV.classList.remove("active");
+    home.classList.add("active");
+    document.title = "Между инцидентами — фотопроект";
+    flashAnimate(home);
+  }
+  function showEnd() {
+    home.classList.remove("active");
+    pair.classList.remove("active");
+    endV.classList.add("active");
+    document.title = "Между инцидентами — финал";
+    flashAnimate(endV);
+  }
+  function showPair(idx) {
+    if (idx < 0 || idx >= SORTED.length) { showHome(); return; }
+    const [num, p] = SORTED[idx];
+    lbA.classList.remove("loaded");
+    lbB.classList.remove("loaded");
+    lbA.src = resolveSrc(p.a);
+    lbB.src = resolveSrc(p.b);
+    lbA.alt = `Between №${num} — left`;
+    lbB.alt = `Between №${num} — right`;
+    prog.textContent = `${idx + 1} / ${SORTED.length}`;
+    prev.disabled = idx === 0;
+    next.disabled = false; // last pair's next still works — goes to the end page
+    prev.dataset.target = idx > 0 ? SORTED[idx - 1][0].toString() : "";
+    next.dataset.target = idx < SORTED.length - 1 ? SORTED[idx + 1][0].toString() : "end";
+    home.classList.remove("active");
+    endV.classList.remove("active");
+    pair.classList.add("active");
+    document.title = `Between №${num}`;
+    flashAnimate(pair);
+  }
+
+  // Fade-in once each image decodes. The frame size is set once by fitPair
+  // and reused for every pair, so we just trigger a refit on load + resize
+  // (no per-pair recompute needed beyond responding to viewport changes).
+  for (const img of [lbA, lbB]) {
+    img.addEventListener("load", () => {
+      img.classList.add("loaded");
+      fitPair();
+    });
+  }
+  window.addEventListener("resize", fitPair);
+
+  // Fixed frame aspect — every photo sits inside the same 4:3 outer box.
+  // Per-orientation size factors against that box: portraits grow ~13%
+  // past the frame edges (PORTRAIT_FACTOR), landscapes shrink ~5% inside
+  // it (LANDSCAPE_FACTOR). Both still preserve aspect ratio (no crop).
+  const FRAME_ASPECT = 4 / 3;
+  const PORTRAIT_FACTOR = 1.13;
+  const LANDSCAPE_FACTOR = 0.95;
+  function fitPair() {
+    if (!pair.classList.contains("active")) return;
+    if (window.innerWidth <= 720) return;
+    const rA = lbA.naturalWidth / lbA.naturalHeight;
+    const rB = lbB.naturalWidth / lbB.naturalHeight;
+    if (!rA || !rB) return; // not yet loaded
+    const stage = document.getElementById("pair-stage");
+    const cs = getComputedStyle(stage);
+    const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const halfW = (stage.clientWidth  - padX) / 2;
+    const availH = stage.clientHeight - padY;
+    // Mixed = one portrait + one landscape → CSS switches to bottom-aligned
+    // framing for the pair. Same-direction pairs stay centred.
+    const aPortrait = rA < 1;
+    const bPortrait = rB < 1;
+    const mixed = aPortrait !== bPortrait;
+    const bothPortrait = aPortrait && bPortrait;
+    pair.classList.toggle("mixed", mixed);
+    pair.classList.toggle("both-portrait", bothPortrait);
+    // Tag each frame with its orientation so the mixed-pair CSS can target
+    // the landscape one specifically (shift down + bottom-align its image).
+    const fA = document.getElementById("frame-a");
+    const fB = document.getElementById("frame-b");
+    fA.classList.toggle("portrait",  rA < 1);
+    fA.classList.toggle("landscape", rA >= 1);
+    fB.classList.toggle("portrait",  rB < 1);
+    fB.classList.toggle("landscape", rB >= 1);
+    // boxH must be small enough that the portrait boost still fits the stage,
+    // whether layout is centred (overflow split top + bottom) or bottom-aligned
+    // (overflow goes upward only). -40 covers frame padding on both sides.
+    const boxW = Math.min(halfW, ((availH - 40) / PORTRAIT_FACTOR) * FRAME_ASPECT);
+    const boxH = boxW / FRAME_ASPECT;
+    // Mixed-pair shift: amount to translate the landscape frame DOWN so its
+    // (bottom-aligned) image lines up with the portrait's image bottom. The
+    // portrait, being PORTRAIT_FACTOR taller than the frame, extends past
+    // the frame bottom by (PORTRAIT_FACTOR-1)/2 · boxH when centred. The
+    // landscape image sits one frame-padding above its frame bottom, so the
+    // shift is (PORTRAIT_FACTOR-1)/2 · boxH + 20.
+    const landscapeShift = mixed ? ((PORTRAIT_FACTOR - 1) / 2) * boxH + 20 : 0;
+    stage.style.setProperty("--landscape-shift", landscapeShift + "px");
+
+    // Compute image display width for a given aspect ratio under the
+    // current box and factors. Used to size the horizontal shifts so the
+    // visible gap between the two images matches a target value.
+    function widthOf(r) {
+      if (r < 1) return boxH * PORTRAIT_FACTOR * r;
+      const wByHeight = boxH * LANDSCAPE_FACTOR * r;
+      const wByWidth  = boxW * LANDSCAPE_FACTOR;
+      return Math.min(wByHeight, wByWidth);
+    }
+
+    // Mixed pair: slide the portrait frame inward so the gap between the
+    // portrait and the landscape matches MIXED_GAP. The landscape stays
+    // horizontally centred in its half.
+    const MIXED_GAP = 42;
+    let mixedPortraitShift = 0;
+    if (mixed) {
+      const portraitR  = aPortrait ? rA : rB;
+      const landscapeR = aPortrait ? rB : rA;
+      const wP = widthOf(portraitR);
+      const wL = widthOf(landscapeR);
+      const currentGap = halfW - wP / 2 - wL / 2;
+      const shift = Math.max(0, currentGap - MIXED_GAP);
+      mixedPortraitShift = aPortrait ? shift : -shift;
+    }
+    stage.style.setProperty("--mixed-portrait-shift", mixedPortraitShift + "px");
+
+    // Two-portrait pair: slide each frame inward so the gap between the
+    // (narrow) images matches a landscape pair's visible spacing. With each
+    // image centred in its cell, the empty space from image edge to stage
+    // centreline is (halfW - imageW)/2 — we shrink that to TWO_PORTRAIT_GAP/2.
+    const TWO_PORTRAIT_GAP = 42; // visible px between the two portraits
+    let shiftA = 0, shiftB = 0;
+    if (bothPortrait) {
+      const wA = boxH * PORTRAIT_FACTOR * rA;
+      const wB = boxH * PORTRAIT_FACTOR * rB;
+      shiftA = Math.max(0, halfW / 2 - wA / 2 - TWO_PORTRAIT_GAP / 2);
+      shiftB = Math.max(0, halfW / 2 - wB / 2 - TWO_PORTRAIT_GAP / 2);
+    }
+    stage.style.setProperty("--portrait-shift-a", shiftA + "px");
+    stage.style.setProperty("--portrait-shift-b", (-shiftB) + "px");
+    for (const id of ["frame-a", "frame-b"]) {
+      const f = document.getElementById(id);
+      f.style.width  = boxW + "px";
+      f.style.height = boxH + "px";
+    }
+    // Per-image overrides per orientation.
+    for (const img of [lbA, lbB]) {
+      const r = img.naturalWidth / img.naturalHeight;
+      if (!r) { img.style.maxWidth = ""; img.style.maxHeight = ""; continue; }
+      if (r < 1) {
+        // Portrait — grow past the frame.
+        img.style.maxHeight = (boxH * PORTRAIT_FACTOR) + "px";
+        img.style.maxWidth  = (boxW * PORTRAIT_FACTOR) + "px"; // aspect caps it
+      } else {
+        // Landscape (or square) — shrink inside the frame.
+        img.style.maxHeight = (boxH * LANDSCAPE_FACTOR) + "px";
+        img.style.maxWidth  = (boxW * LANDSCAPE_FACTOR) + "px";
+      }
+    }
+  }
+  // Also fit on every hashchange so navigating to a new pair re-applies size
+  // immediately (images can be cached and skip the load event).
+  window.addEventListener("hashchange", () => requestAnimationFrame(fitPair));
+  function route() {
+    const hash = (location.hash || "").replace("#", "").trim();
+    if (!hash) return showHome();
+    if (hash === "end") return showEnd();
+    const num = parseInt(hash, 10);
+    const idx = SORTED.findIndex(([n]) => n === num);
+    if (idx < 0) return showHome();
+    showPair(idx);
+  }
+  window.addEventListener("hashchange", route);
+  route();
+
+  // Home page → arrow button enters the first pair. Using button + JS
+  // navigation (instead of <a href="#1">) avoids any browser anchor-scroll
+  // attempt before the hashchange-driven view swap.
+  const enterBtn = document.getElementById("enter-btn");
+  if (enterBtn && SORTED.length) {
+    enterBtn.addEventListener("click", () => {
+      location.hash = "#" + SORTED[0][0];
+    });
+  }
+
+  // Pair-view ↑ button → return to the home/title page (clears the hash).
+  const homeBtn = document.getElementById("home-btn");
+  if (homeBtn) {
+    homeBtn.addEventListener("click", () => {
+      history.pushState("", document.title, location.pathname + location.search);
+      route();
+    });
+  }
+
+  // End-page nav: ← back to last pair, ↑ to home.
+  const endPrev = document.getElementById("end-prev-btn");
+  const endHome = document.getElementById("end-home-btn");
+  if (endPrev) {
+    endPrev.addEventListener("click", () => {
+      if (!SORTED.length) return;
+      location.hash = "#" + SORTED[SORTED.length - 1][0];
+    });
+  }
+  if (endHome) {
+    endHome.addEventListener("click", () => {
+      history.pushState("", document.title, location.pathname + location.search);
+      route();
+    });
+  }
+
+  // Keyboard nav also wired for the end page.
+  document.addEventListener("keydown", (e) => {
+    if (!endV.classList.contains("active")) return;
+    if (e.key === "ArrowLeft" && endPrev) endPrev.click();
+    else if (e.key === "Escape" && endHome) endHome.click();
+  });
+
+  // Fade in the end photo when it decodes.
+  const endPhoto = document.getElementById("end-photo");
+  if (endPhoto) {
+    endPhoto.addEventListener("load", () => endPhoto.classList.add("loaded"));
+    if (endPhoto.complete) endPhoto.classList.add("loaded");
+  }
+
+  // Fade in the home photo when it decodes.
+  const homePhoto = document.getElementById("home-photo");
+  if (homePhoto) {
+    homePhoto.addEventListener("load", () => {
+      homePhoto.classList.add("loaded");
+      alignHomeCredit();
+    });
+    if (homePhoto.complete && homePhoto.naturalWidth) {
+      homePhoto.classList.add("loaded");
+      alignHomeCredit();
+    }
+  }
+
+  // Match the home-credit's bottom edge to the bottom edge of First.jpg.
+  // Without JS we'd have to guess the photo's rendered height (it depends
+  // on the photo's natural aspect ratio inside max-width:46vw / max-height:86vh).
+  const homeCredit = document.querySelector(".home-credit");
+  function alignHomeCredit() {
+    if (!homePhoto || !homeCredit) return;
+    const rect = homePhoto.getBoundingClientRect();
+    if (!rect.height) return;
+    const offsetFromBottom = Math.max(16, window.innerHeight - rect.bottom);
+    homeCredit.style.bottom = offsetFromBottom + "px";
+  }
+  window.addEventListener("resize", alignHomeCredit);
+
+  // Nav handlers
+  prev.addEventListener("click", () => {
+    const t = prev.dataset.target;
+    if (t) location.hash = "#" + t;
+  });
+  next.addEventListener("click", () => {
+    const t = next.dataset.target;
+    if (t) location.hash = "#" + t;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!pair.classList.contains("active")) return;
+    if (e.key === "ArrowRight") next.click();
+    else if (e.key === "ArrowLeft") prev.click();
+    else if (e.key === "Escape") { location.hash = ""; }
+  });
+</script>
+</body>
+</html>
