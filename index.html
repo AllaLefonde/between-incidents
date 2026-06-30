@@ -78,6 +78,19 @@
     pointer-events: none;
     transition: bottom 0.25s ease;
   }
+  .credit-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: rgba(74,86,96,0.4);
+    text-underline-offset: 3px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+  }
+  .credit-link:hover {
+    color: #20292F;
+    text-decoration-color: #20292F;
+  }
   h1 {
     margin: 0;
     text-align: center;
@@ -406,7 +419,7 @@
       </svg>
     </button>
   </header>
-  <div class="home-credit" data-i18n="credit">Класс Димы Конрадта · 2025—2026</div>
+  <div class="home-credit" id="home-credit">Класс Димы Конрадта · 2025—2026</div>
 </div>
 
 <!-- ===== Single-pair page ===== -->
@@ -451,7 +464,7 @@
       docTitleEnd: "Between Incidents — finale",
       docTitlePair: (n) => `Between №${n}`,
       title: "Clicks Between Incidents",
-      credit: "Dima Konradt's Class · 2025—2026",
+      credit: 'Школа <a class="credit-link" href="http://tsekh.school/" data-popup>Цех</a>. <a class="credit-link" href="http://dimakonradt.ru/" data-popup>Dima Konradt</a>’s class · 2025—2026',
       enter: "Open the first pair",
       prev: "Previous pair",
       next: "Next pair",
@@ -475,7 +488,7 @@
       docTitleEnd: "Между инцидентами — финал",
       docTitlePair: (n) => `Между инцидентами №${n}`,
       title: "Клики между инцидентами",
-      credit: "Класс Димы Конрадта · 2025—2026",
+      credit: 'Школа <a class="credit-link" href="http://tsekh.school/" data-popup>Цех</a>. Класс <a class="credit-link" href="http://dimakonradt.ru/" data-popup>Димы Конрадта</a> · 2025—2026',
       enter: "Открыть первую пару",
       prev: "Предыдущая пара",
       next: "Следующая пара",
@@ -499,7 +512,7 @@
       docTitleEnd: "בין תקריות — סיום",
       docTitlePair: (n) => `בין תקריות מס׳ ${n}`,
       title: "קליקים בין תקריות",
-      credit: "הכיתה של דימה קונרדט · 2025—2026",
+      credit: 'בית הספר <a class="credit-link" href="http://tsekh.school/" data-popup>Цех</a>. הכיתה של <a class="credit-link" href="http://dimakonradt.ru/" data-popup>דימה קונרדט</a> · 2025—2026',
       enter: "פתיחת הזוג הראשון",
       prev: "הזוג הקודם",
       next: "הזוג הבא",
@@ -538,6 +551,9 @@
       const key = el.getAttribute("data-i18n");
       if (t[key] != null) el.textContent = t[key];
     });
+    // Credit line is rebuilt as HTML so the two embedded links survive.
+    const creditEl = document.getElementById("home-credit");
+    if (creditEl && t.credit) creditEl.innerHTML = t.credit;
     // Aria labels
     document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
       const key = el.getAttribute("data-i18n-aria");
@@ -609,6 +625,17 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeLangMenu();
   });
+  document.getElementById("home-credit").addEventListener("click", (e) => {
+    const a = e.target.closest("a[data-popup]");
+    if (!a) return;
+    e.preventDefault();
+    const w = Math.min(1100, Math.max(600, Math.round(window.innerWidth * 0.7)));
+    const h = Math.min(800,  Math.max(500, Math.round(window.innerHeight * 0.8)));
+    const left = Math.max(0, Math.round((window.screen.availWidth  - w) / 2));
+    const top  = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+    window.open(a.href, "_blank", `popup=yes,width=${w},height=${h},left=${left},top=${top},noopener,noreferrer`);
+  });
+
   applyLang(currentLang);
 
   // The full set of files in this folder — grouped by the numeric prefix
