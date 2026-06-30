@@ -470,7 +470,7 @@
       altRight: (n) => `Between №${n} — right`,
       endMessage: [
         "Thank you, Dima,",
-        "Nastya, Kristina(!),",
+        'Nastya, <a class="credit-link" href="https://www.khristinaripak.com/" data-popup>Khristina</a>(!),',
         " Anya, Alexander, Dmitry, Artem",
         " ",
         "Until we meet again",
@@ -494,7 +494,7 @@
       altRight: (n) => `Между №${n} — справа`,
       endMessage: [
         "Спасибо, Дима,",
-        "Настя, Кристина(!),",
+        'Настя, <a class="credit-link" href="https://www.khristinaripak.com/" data-popup>Христина</a>(!),',
         " Аня, Александр, Дмитрий, Артем",
         " ",
         "До новых встреч",
@@ -518,7 +518,7 @@
       altRight: (n) => `בין מס׳ ${n} — ימין`,
       endMessage: [
         "תודה, דימה,",
-        "נסטיה, כריסטינה(!),",
+        'נסטיה, <a class="credit-link" href="https://www.khristinaripak.com/" data-popup>חריסטינה</a>(!),',
         " אניה, אלכסנדר, דמיטרי, ארטיום",
         " ",
         "להתראות",
@@ -562,7 +562,7 @@
       for (const line of t.endMessage) {
         const d = document.createElement("div");
         if (line === " ") d.innerHTML = "&nbsp;";
-        else d.textContent = line;
+        else d.innerHTML = line;
         wrap.appendChild(d);
       }
       endMsg.appendChild(wrap);
@@ -620,7 +620,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeLangMenu();
   });
-  document.getElementById("home-credit").addEventListener("click", (e) => {
+  document.addEventListener("click", (e) => {
     const a = e.target.closest("a[data-popup]");
     if (!a) return;
     e.preventDefault();
