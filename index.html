@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Between — a photo project</title>
+<title>Между инцидентами — фотопроект</title>
 <style>
   :root {
     --bg: #20292F;
@@ -292,6 +292,62 @@
   }
   .end-message div + div { margin-top: 4px; }
 
+  /* ====== Language selector ====== */
+  .lang-switch {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    gap: 4px;
+    z-index: 3;
+    pointer-events: auto;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: #4a5660;
+  }
+  .lang-switch button {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 4px 8px;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    letter-spacing: inherit;
+    opacity: 0.55;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+  .lang-switch button:hover { opacity: 1; }
+  .lang-switch button.active {
+    opacity: 1;
+    color: #20292F;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .lang-switch .lang-sep { opacity: 0.4; user-select: none; }
+
+  /* RTL adjustments for Hebrew on the home / end pages */
+  html[dir="rtl"] #view-home header.hero,
+  html[dir="rtl"] #view-end .end-message {
+    left: 0;
+    right: 50%;
+  }
+  html[dir="rtl"] .home-photo,
+  html[dir="rtl"] .end-photo {
+    left: auto;
+    right: 25vw;
+    transform: translate(50%, -50%);
+  }
+  html[dir="rtl"] .home-credit {
+    left: 0;
+    right: 50%;
+    padding-right: 0;
+    padding-left: 44px;
+    text-align: left;
+  }
+
   /* ====== Responsive ====== */
   @media (max-width: 720px) {
     :root { --gap: 12px; --header-h: 56px; --footer-h: 56px; }
@@ -308,10 +364,17 @@
 
 <!-- ===== Home / landing ===== -->
 <div class="view active" id="view-home">
+  <nav class="lang-switch" id="lang-switch" aria-label="Language">
+    <button type="button" data-lang="en">EN</button>
+    <span class="lang-sep">·</span>
+    <button type="button" data-lang="ru">RU</button>
+    <span class="lang-sep">·</span>
+    <button type="button" data-lang="he">HE</button>
+  </nav>
   <img class="home-photo" id="home-photo" src="First.jpg" alt="">
   <header class="hero">
-    <h1>Клики между инцидентами</h1>
-    <button type="button" class="enter" id="enter-btn" aria-label="Открыть первую пару">
+    <h1 data-i18n="title">Клики между инцидентами</h1>
+    <button type="button" class="enter" id="enter-btn" data-i18n-aria="enter">
       <svg viewBox="0 0 80 22" width="48" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
         <!-- shaft, with a faint hand-drawn curve so it pairs with the Caveat title -->
         <path d="M3 11 C 22 10.4, 50 11.6, 70 11"/>
@@ -321,7 +384,7 @@
       </svg>
     </button>
   </header>
-  <div class="home-credit">Класс Димы Конрадта · 2025—2026</div>
+  <div class="home-credit" data-i18n="credit">Класс Димы Конрадта · 2025—2026</div>
 </div>
 
 <!-- ===== Single-pair page ===== -->
@@ -333,9 +396,9 @@
   <footer class="pair-footer">
     <div class="pair-footer-spacer"></div>
     <div class="nav-group">
-      <button class="nav-btn" id="prev-btn" aria-label="Предыдущая пара">←</button>
-      <button class="nav-btn" id="home-btn" aria-label="К началу">↑</button>
-      <button class="nav-btn" id="next-btn" aria-label="Следующая пара">→</button>
+      <button class="nav-btn" id="prev-btn" data-i18n-aria="prev">←</button>
+      <button class="nav-btn" id="home-btn" data-i18n-aria="home">↑</button>
+      <button class="nav-btn" id="next-btn" data-i18n-aria="next">→</button>
     </div>
     <div class="pair-progress" id="pair-progress">— / —</div>
   </footer>
@@ -344,27 +407,166 @@
 <!-- ===== End page (Last.jpg) ===== -->
 <div class="view" id="view-end">
   <img class="end-photo" id="end-photo" src="Last.jpg" alt="">
-  <div class="end-message">
-    <div>
-      <div>Спасибо, Дима,</div>
-      <div>Настя, Кристина(!),</div>
-      <div>&nbsp;Аня, Александр, Дмитрий, Артем</div>
-      <div>&nbsp;</div>
-      <div>До новых встреч</div>
-    </div>
-  </div>
+  <div class="end-message" id="end-message"></div>
   <footer class="pair-footer">
     <div class="pair-footer-spacer"></div>
     <div class="nav-group">
-      <button class="nav-btn" id="end-prev-btn" aria-label="Назад к последней паре">←</button>
-      <button class="nav-btn" id="end-home-btn" aria-label="К началу">↑</button>
-      <button class="nav-btn" disabled aria-label="Дальше нет">→</button>
+      <button class="nav-btn" id="end-prev-btn" data-i18n-aria="endPrev">←</button>
+      <button class="nav-btn" id="end-home-btn" data-i18n-aria="home">↑</button>
+      <button class="nav-btn" disabled data-i18n-aria="noMore">→</button>
     </div>
     <div class="pair-progress"></div>
   </footer>
 </div>
 
 <script>
+  // ====== i18n ======
+  const I18N = {
+    en: {
+      htmlLang: "en",
+      dir: "ltr",
+      docTitleHome: "Between Incidents — a photo project",
+      docTitleEnd: "Between Incidents — finale",
+      docTitlePair: (n) => `Between №${n}`,
+      title: "Clicks Between Incidents",
+      credit: "Dima Konradt's Class · 2025—2026",
+      enter: "Open the first pair",
+      prev: "Previous pair",
+      next: "Next pair",
+      home: "Back to start",
+      endPrev: "Back to the last pair",
+      noMore: "No more pairs",
+      altLeft: (n) => `Between №${n} — left`,
+      altRight: (n) => `Between №${n} — right`,
+      endMessage: [
+        "Thank you, Dima,",
+        "Nastya, Kristina(!),",
+        " Anya, Alexander, Dmitry, Artem",
+        " ",
+        "Until we meet again",
+      ],
+    },
+    ru: {
+      htmlLang: "ru",
+      dir: "ltr",
+      docTitleHome: "Между инцидентами — фотопроект",
+      docTitleEnd: "Между инцидентами — финал",
+      docTitlePair: (n) => `Между инцидентами №${n}`,
+      title: "Клики между инцидентами",
+      credit: "Класс Димы Конрадта · 2025—2026",
+      enter: "Открыть первую пару",
+      prev: "Предыдущая пара",
+      next: "Следующая пара",
+      home: "К началу",
+      endPrev: "Назад к последней паре",
+      noMore: "Дальше нет",
+      altLeft: (n) => `Между №${n} — слева`,
+      altRight: (n) => `Между №${n} — справа`,
+      endMessage: [
+        "Спасибо, Дима,",
+        "Настя, Кристина(!),",
+        " Аня, Александр, Дмитрий, Артем",
+        " ",
+        "До новых встреч",
+      ],
+    },
+    he: {
+      htmlLang: "he",
+      dir: "rtl",
+      docTitleHome: "בין תקריות — פרויקט צילום",
+      docTitleEnd: "בין תקריות — סיום",
+      docTitlePair: (n) => `בין תקריות מס׳ ${n}`,
+      title: "קליקים בין תקריות",
+      credit: "הכיתה של דימה קונרדט · 2025—2026",
+      enter: "פתיחת הזוג הראשון",
+      prev: "הזוג הקודם",
+      next: "הזוג הבא",
+      home: "חזרה להתחלה",
+      endPrev: "חזרה לזוג האחרון",
+      noMore: "אין עוד זוגות",
+      altLeft: (n) => `בין מס׳ ${n} — שמאל`,
+      altRight: (n) => `בין מס׳ ${n} — ימין`,
+      endMessage: [
+        "תודה, דימה,",
+        "נסטיה, כריסטינה(!),",
+        " אניה, אלכסנדר, דמיטרי, ארטיום",
+        " ",
+        "להתראות",
+      ],
+    },
+  };
+  const LANG_KEY = "between.lang";
+  function getLang() {
+    const saved = localStorage.getItem(LANG_KEY);
+    if (saved && I18N[saved]) return saved;
+    return "ru";
+  }
+  let currentLang = getLang();
+
+  function applyLang(lang) {
+    if (!I18N[lang]) lang = "ru";
+    currentLang = lang;
+    localStorage.setItem(LANG_KEY, lang);
+    const t = I18N[lang];
+    document.documentElement.lang = t.htmlLang;
+    document.documentElement.dir = t.dir;
+    // Static text nodes
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const key = el.getAttribute("data-i18n");
+      if (t[key] != null) el.textContent = t[key];
+    });
+    // Aria labels
+    document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+      const key = el.getAttribute("data-i18n-aria");
+      if (t[key] != null) el.setAttribute("aria-label", t[key]);
+    });
+    // End message block
+    const endMsg = document.getElementById("end-message");
+    if (endMsg) {
+      endMsg.innerHTML = "";
+      const wrap = document.createElement("div");
+      for (const line of t.endMessage) {
+        const d = document.createElement("div");
+        if (line === " ") d.innerHTML = "&nbsp;";
+        else d.textContent = line;
+        wrap.appendChild(d);
+      }
+      endMsg.appendChild(wrap);
+    }
+    // Active button state
+    document.querySelectorAll("#lang-switch button[data-lang]").forEach((b) => {
+      b.classList.toggle("active", b.getAttribute("data-lang") === lang);
+    });
+    // Refresh per-view title + any pair-specific alt text
+    refreshDynamicI18n();
+  }
+
+  function refreshDynamicI18n() {
+    const t = I18N[currentLang];
+    const hash = (location.hash || "").replace("#", "").trim();
+    if (!hash) {
+      document.title = t.docTitleHome;
+    } else if (hash === "end") {
+      document.title = t.docTitleEnd;
+    } else {
+      const num = parseInt(hash, 10);
+      if (!isNaN(num)) {
+        document.title = t.docTitlePair(num);
+        const a = document.getElementById("pair-a");
+        const b = document.getElementById("pair-b");
+        if (a) a.alt = t.altLeft(num);
+        if (b) b.alt = t.altRight(num);
+      }
+    }
+  }
+
+  document.getElementById("lang-switch").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-lang]");
+    if (!btn) return;
+    applyLang(btn.getAttribute("data-lang"));
+  });
+  applyLang(currentLang);
+
   // The full set of files in this folder — grouped by the numeric prefix
   // before the dot. Pair "14" is built from 14.1-… and 14.2-…
   // The block between FILES:BEGIN and FILES:END is regenerated by
@@ -488,25 +690,26 @@
     pair.classList.remove("active");
     endV.classList.remove("active");
     home.classList.add("active");
-    document.title = "Между инцидентами — фотопроект";
+    document.title = I18N[currentLang].docTitleHome;
     flashAnimate(home);
   }
   function showEnd() {
     home.classList.remove("active");
     pair.classList.remove("active");
     endV.classList.add("active");
-    document.title = "Между инцидентами — финал";
+    document.title = I18N[currentLang].docTitleEnd;
     flashAnimate(endV);
   }
   function showPair(idx) {
     if (idx < 0 || idx >= SORTED.length) { showHome(); return; }
     const [num, p] = SORTED[idx];
+    const t = I18N[currentLang];
     lbA.classList.remove("loaded");
     lbB.classList.remove("loaded");
     lbA.src = resolveSrc(p.a);
     lbB.src = resolveSrc(p.b);
-    lbA.alt = `Between №${num} — left`;
-    lbB.alt = `Between №${num} — right`;
+    lbA.alt = t.altLeft(num);
+    lbB.alt = t.altRight(num);
     prog.textContent = `${idx + 1} / ${SORTED.length}`;
     prev.disabled = idx === 0;
     next.disabled = false; // last pair's next still works — goes to the end page
@@ -515,7 +718,7 @@
     home.classList.remove("active");
     endV.classList.remove("active");
     pair.classList.add("active");
-    document.title = `Between №${num}`;
+    document.title = t.docTitlePair(num);
     flashAnimate(pair);
   }
 
