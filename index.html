@@ -401,7 +401,7 @@
       <li role="option" data-lang="he">עברית</li>
     </ul>
   </div>
-  <img class="home-photo" id="home-photo" src="First.jpg" alt="">
+  <img class="home-photo" id="home-photo" src="First.jpg" alt="" decoding="async" fetchpriority="high">
   <header class="hero">
     <h1 data-i18n="title">Клики между инцидентами</h1>
     <button type="button" class="enter" id="enter-btn" data-i18n-aria="enter">
@@ -420,8 +420,8 @@
 <!-- ===== Single-pair page ===== -->
 <div class="view" id="view-pair">
   <section class="pair-stage" id="pair-stage">
-    <div class="frame-box" id="frame-a"><img id="pair-a" alt=""></div>
-    <div class="frame-box" id="frame-b"><img id="pair-b" alt=""></div>
+    <div class="frame-box" id="frame-a"><img id="pair-a" alt="" decoding="async"></div>
+    <div class="frame-box" id="frame-b"><img id="pair-b" alt="" decoding="async"></div>
   </section>
   <footer class="pair-footer">
     <div class="pair-footer-spacer"></div>
@@ -436,7 +436,7 @@
 
 <!-- ===== End page (Last.jpg) ===== -->
 <div class="view" id="view-end">
-  <img class="end-photo" id="end-photo" src="Last.jpg" alt="">
+  <img class="end-photo" id="end-photo" src="Last.jpg" alt="" decoding="async">
   <div class="end-message" id="end-message"></div>
   <footer class="pair-footer">
     <div class="pair-footer-spacer"></div>
@@ -733,6 +733,53 @@
     }
   }
 
+  // --- Image preloading ---
+  // The user's biggest wait is between pair N and pair N+1 — that's when
+  // two fresh JPEGs get fetched. We warm the browser cache by kicking off
+  // Image() requests for likely-next images, so by the time the user hits
+  // → the file is already in cache and paint is near-instant.
+  //
+  //   preloadNeighbors(idx) — called from showPair(); grabs ±1 and ±2
+  //     immediately (the user is one keypress from any of those).
+  //   preloadAll() — after boot, walks the entire deck in small idle
+  //     batches so a user who scrubs through fast never waits.
+  const _preloaded = new Set();
+  function preloadOne(name) {
+    if (!name) return;
+    const url = resolveSrc(name);
+    if (!url || _preloaded.has(url)) return;
+    _preloaded.add(url);
+    const im = new Image();
+    im.decoding = "async";
+    im.src = url;
+  }
+  function preloadPair(idx) {
+    if (idx < 0 || idx >= SORTED.length) return;
+    const [, p] = SORTED[idx];
+    preloadOne(p.a);
+    preloadOne(p.b);
+  }
+  function preloadNeighbors(idx) {
+    // Order matters — the +1 fetch starts first, so if the browser's
+    // connection pool is saturated it's the one the user needs next.
+    preloadPair(idx + 1);
+    preloadPair(idx - 1);
+    preloadPair(idx + 2);
+    preloadPair(idx - 2);
+  }
+  const _idle = window.requestIdleCallback ||
+    ((cb) => setTimeout(cb, 200));
+  function preloadAll() {
+    let i = 0;
+    const step = () => {
+      // 2 pairs (4 images) per idle slice keeps the browser's connection
+      // pool busy without starving user-initiated navigation fetches.
+      for (let n = 0; n < 2 && i < SORTED.length; n++) preloadPair(i++);
+      if (i < SORTED.length) _idle(step, { timeout: 500 });
+    };
+    _idle(step, { timeout: 1000 });
+  }
+
   // --- Routing ---
   const home  = document.getElementById("view-home");
   const pair  = document.getElementById("view-pair");
@@ -786,6 +833,7 @@
     pair.classList.add("active");
     document.title = t.docTitlePair(num);
     flashAnimate(pair);
+    preloadNeighbors(idx);
   }
 
   // Fade-in once each image decodes. The frame size is set once by fitPair
@@ -922,6 +970,9 @@
   }
   window.addEventListener("hashchange", route);
   route();
+  // Kick off background preload of the entire deck (idle-scheduled, so it
+  // won't fight with the current pair's fetch or the home-page paint).
+  if (SORTED.length) preloadAll();
 
   // Home page → arrow button enters the first pair. Using button + JS
   // navigation (instead of <a href="#1">) avoids any browser anchor-scroll
