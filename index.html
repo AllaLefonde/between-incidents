@@ -813,10 +813,17 @@
     document.title = I18N[currentLang].docTitleEnd;
     flashAnimate(endV);
   }
+  // Bumped each time showPair opens a new pair. The pair reveal is
+  // gated behind decode() promises for both images — if the user
+  // navigates onward before those settle, the stale promise handler
+  // sees a mismatched token and bails out (so a slow pair can't paint
+  // over a fast pair the user has already moved to).
+  let _pairToken = 0;
   function showPair(idx) {
     if (idx < 0 || idx >= SORTED.length) { showHome(); return; }
     const [num, p] = SORTED[idx];
     const t = I18N[currentLang];
+    const token = ++_pairToken;
     lbA.classList.remove("loaded");
     lbB.classList.remove("loaded");
     lbA.src = resolveSrc(p.a);
@@ -834,16 +841,39 @@
     document.title = t.docTitlePair(num);
     flashAnimate(pair);
     preloadNeighbors(idx);
+    // Wait for BOTH images to finish decoding, then reveal them in the
+    // same paint frame. This kills the flicker where the faster-decoded
+    // image would appear a moment before the slower one.
+    Promise.all([decodeImg(lbA), decodeImg(lbB)]).then(() => {
+      if (token !== _pairToken) return; // navigated onward already
+      fitPair();
+      // rAF so the classList changes are committed together on the next
+      // frame — otherwise a mid-tick style flush could stagger them.
+      requestAnimationFrame(() => {
+        if (token !== _pairToken) return;
+        lbA.classList.add("loaded");
+        lbB.classList.add("loaded");
+      });
+    });
+  }
+  // decode() resolves when the image is fully parsed AND decoded — safer
+  // than the load event, which fires before decode on some browsers.
+  // Falls back to a load-event Promise where decode() isn't available.
+  function decodeImg(img) {
+    if (img.decode) return img.decode().catch(() => {});
+    if (img.complete && img.naturalWidth) return Promise.resolve();
+    return new Promise((resolve) => {
+      img.addEventListener("load",  resolve, { once: true });
+      img.addEventListener("error", resolve, { once: true });
+    });
   }
 
-  // Fade-in once each image decodes. The frame size is set once by fitPair
-  // and reused for every pair, so we just trigger a refit on load + resize
-  // (no per-pair recompute needed beyond responding to viewport changes).
+  // The load event still fires fitPair() — the frame box needs each
+  // image's natural aspect ratio to size itself, and that's cheap. The
+  // .loaded class is NOT added here; showPair()'s Promise.all owns the
+  // reveal so both halves cross-fade in together.
   for (const img of [lbA, lbB]) {
-    img.addEventListener("load", () => {
-      img.classList.add("loaded");
-      fitPair();
-    });
+    img.addEventListener("load", () => fitPair());
   }
   window.addEventListener("resize", fitPair);
 
